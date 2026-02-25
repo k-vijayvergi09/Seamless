@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Seamless" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Seamless" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/seamless_cyan</item>
+        <item name="android:colorAccent">@color/seamless_cyan</item>
+        <item name="android:windowBackground">@color/seamless_navy</item>
+        <item name="android:statusBarColor">@color/seamless_navy</item>
+        <item name="android:navigationBarColor">@color/seamless_navy</item>
+    </style>
 </resources>

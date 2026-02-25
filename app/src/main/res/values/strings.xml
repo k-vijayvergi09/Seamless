@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Seamless</string>
+    <string name="widget_description">Voice-to-text companion widget. Tap to start real-time speech transcription.</string>
 </resources>

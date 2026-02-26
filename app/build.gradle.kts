@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -34,6 +36,20 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    defaultConfig {
+        val secretsPropertiesFile = rootProject.file("secrets.properties")
+        val secretsProperties = Properties().apply {
+            if (secretsPropertiesFile.exists()) {
+                load(secretsPropertiesFile.inputStream())
+            }
+        }
+
+        // Add to BuildConfig (escape quotes for String)
+        val sarvamApiKey = secretsProperties.getProperty("sarvamApiKey") ?: ""
+        buildConfigField("String", "SARVAM_API_KEY", "\"$sarvamApiKey\"")
     }
 }
 
@@ -57,4 +73,11 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    //speech-to-text
+    implementation(libs.okhttp) // Latest as of 2025
+    implementation(libs.kotlinx.coroutines.android)
+
+    implementation("com.airbnb.android:lottie-compose:6.4.1")
+
 }

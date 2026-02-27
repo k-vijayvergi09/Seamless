@@ -10,12 +10,10 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.util.Log
-import androidx.glance.appwidget.GlanceAppWidgetManager
 import com.samsung.android.seamless.MainActivity
 import com.samsung.android.seamless.R
 import com.samsung.android.seamless.data.SarvamSttRepository
 import com.samsung.android.seamless.widget.RecognitionState
-import com.samsung.android.seamless.widget.SeamlessWidget
 import com.samsung.android.seamless.widget.WidgetStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -89,23 +87,10 @@ class SpeechRecognitionService : Service() {
         isRunning = false
         repository.stopStreaming()
 
-        // Use synchronous commit() so the write completes before the widget reads.
-        // The async apply() was causing the widget to read stale state.
-        stateManager.setIdleStateSync()
-
-        // Refresh the widget synchronously using runBlocking to ensure it completes
-        // before the service is fully destroyed.
+        // Update widget state using Glance's internal state management.
+        // runBlocking ensures completion before service is destroyed.
         kotlinx.coroutines.runBlocking {
-            try {
-                val manager = GlanceAppWidgetManager(applicationContext)
-                val ids = manager.getGlanceIds(SeamlessWidget::class.java)
-                Log.i(TAG, "Updating ${ids.size} widget(s) on destroy")
-                for (id in ids) {
-                    SeamlessWidget().update(applicationContext, id)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Widget refresh failed on destroy", e)
-            }
+            stateManager.setIdleStateAndRefresh(this@SpeechRecognitionService)
         }
 
         serviceScope.cancel()
@@ -127,7 +112,10 @@ class SpeechRecognitionService : Service() {
         Log.i(TAG, "startStreaming called — launching coroutines")
 
         serviceScope.launch {
-            stateManager.updateStateAndRefreshWidget(RecognitionState.LISTENING)
+            stateManager.updateStateAndRefreshWidget(
+                state = RecognitionState.LISTENING,
+                callerContext = this@SpeechRecognitionService
+            )
         }
 
         serviceScope.launch {
@@ -151,7 +139,8 @@ class SpeechRecognitionService : Service() {
                         serviceScope.launch {
                             stateManager.updateStateAndRefreshWidget(
                                 state = RecognitionState.SPEECH_ACTIVE,
-                                transcript = updated
+                                transcript = updated,
+                                callerContext = this@SpeechRecognitionService
                             )
                         }
                     }
@@ -164,7 +153,10 @@ class SpeechRecognitionService : Service() {
                         else -> return
                     }
                     serviceScope.launch {
-                        stateManager.updateStateAndRefreshWidget(nextState)
+                        stateManager.updateStateAndRefreshWidget(
+                            state = nextState,
+                            callerContext = this@SpeechRecognitionService
+                        )
                     }
                 }
                 "error" -> {
@@ -176,7 +168,8 @@ class SpeechRecognitionService : Service() {
                     serviceScope.launch {
                         stateManager.updateStateAndRefreshWidget(
                             state = RecognitionState.ERROR,
-                            error = error
+                            error = error,
+                            callerContext = this@SpeechRecognitionService
                         )
                     }
                     stopSelf()

@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.state.updateAppWidgetState
+import androidx.glance.state.PreferencesGlanceStateDefinition
 
 enum class RecognitionState {
     IDLE,           // Not recording, ready to start
@@ -13,11 +15,11 @@ enum class RecognitionState {
 }
 
 /**
- * SharedPreferences-backed state bridge between [SpeechRecognitionService]
- * and [SeamlessWidget]. Both sides read/write through this class.
+ * State manager that bridges [SpeechRecognitionService] and [SeamlessWidget].
  *
- * After every state change, call [updateStateAndRefreshWidget] to push
- * a fresh render to all active widget instances.
+ * Uses Glance's internal state via [updateAppWidgetState] for reliable widget updates
+ * from background contexts (Services, WorkManager). Also maintains SharedPreferences
+ * for quick state reads by the Service.
  */
 class WidgetStateManager(private val context: Context) {
 
@@ -29,6 +31,7 @@ class WidgetStateManager(private val context: Context) {
         private const val KEY_ERROR = "error_message"
     }
 
+    // SharedPreferences for quick service-side reads (not used by widget directly)
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -49,34 +52,72 @@ class WidgetStateManager(private val context: Context) {
         set(value) = prefs.edit().putString(KEY_ERROR, value).apply()
 
     /**
-     * Updates state (and optionally transcript/error) then triggers a re-render
-     * of all SeamlessWidget instances on the home screen.
-     *
-     * Uses commit() instead of apply() to ensure writes complete before
-     * the widget reads the updated values.
+     * Updates widget state using Glance's internal state management, then triggers update.
+     * This approach works reliably from Service/background contexts.
      */
     suspend fun updateStateAndRefreshWidget(
         state: RecognitionState,
         transcript: String? = null,
-        error: String? = null
+        error: String? = null,
+        callerContext: Context? = null
     ) {
-        // Use synchronous commit() to avoid race condition where widget
-        // reads stale data before async apply() completes.
-        prefs.edit().apply {
-            putString(KEY_STATE, state.name)
-            transcript?.let { putString(KEY_TRANSCRIPT, it) }
-            error?.let { putString(KEY_ERROR, it) }
-        }.commit()
+        val ctx = callerContext ?: context
+
+        // Also update SharedPreferences for service-side reads
+        prefs.edit()
+            .putString(KEY_STATE, state.name)
+            .apply {
+                transcript?.let { putString(KEY_TRANSCRIPT, it) }
+                error?.let { putString(KEY_ERROR, it) }
+            }
+            .commit()
 
         try {
-            val manager = GlanceAppWidgetManager(context)
-            val ids = manager.getGlanceIds(SeamlessWidget::class.java)
-            Log.i(TAG, "Updating ${ids.size} widget(s) → state=$state")
-            for (id in ids) {
-                SeamlessWidget().update(context, id)
+            val manager = GlanceAppWidgetManager(ctx)
+            val glanceIds = manager.getGlanceIds(SeamlessWidget::class.java)
+            Log.i(TAG, "Updating ${glanceIds.size} widget(s) → state=$state")
+
+            for (glanceId in glanceIds) {
+                // Update Glance's internal state for this widget instance
+                updateAppWidgetState(ctx, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                    prefs.toMutablePreferences().apply {
+                        this[WidgetStateKeys.STATE] = state.name
+                        transcript?.let { this[WidgetStateKeys.TRANSCRIPT] = it }
+                        error?.let { this[WidgetStateKeys.ERROR] = it }
+                    }
+                }
+                // Trigger widget update after state is written
+                SeamlessWidget().update(ctx, glanceId)
             }
+            Log.i(TAG, "Widget update complete")
         } catch (e: Exception) {
             Log.e(TAG, "Glance update failed for state=$state", e)
+        }
+    }
+
+    /**
+     * Sets state to IDLE for all widgets. Used in Service.onDestroy().
+     */
+    suspend fun setIdleStateAndRefresh(ctx: Context) {
+        prefs.edit()
+            .putString(KEY_STATE, RecognitionState.IDLE.name)
+            .commit()
+
+        try {
+            val manager = GlanceAppWidgetManager(ctx)
+            val glanceIds = manager.getGlanceIds(SeamlessWidget::class.java)
+            Log.i(TAG, "Setting ${glanceIds.size} widget(s) to IDLE on destroy")
+
+            for (glanceId in glanceIds) {
+                updateAppWidgetState(ctx, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                    prefs.toMutablePreferences().apply {
+                        this[WidgetStateKeys.STATE] = RecognitionState.IDLE.name
+                    }
+                }
+                SeamlessWidget().update(ctx, glanceId)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to set IDLE state on destroy", e)
         }
     }
 
@@ -86,16 +127,5 @@ class WidgetStateManager(private val context: Context) {
             .putString(KEY_TRANSCRIPT, "")
             .putString(KEY_ERROR, "")
             .apply()
-    }
-
-    /**
-     * Synchronously sets the state to IDLE using commit() instead of apply().
-     * Use this in Service.onDestroy() where we need the write to complete
-     * before the widget refresh reads from SharedPreferences.
-     */
-    fun setIdleStateSync() {
-        prefs.edit()
-            .putString(KEY_STATE, RecognitionState.IDLE.name)
-            .commit()  // Synchronous write
     }
 }

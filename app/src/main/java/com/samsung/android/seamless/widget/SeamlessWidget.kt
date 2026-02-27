@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
@@ -16,8 +18,10 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
+import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -30,11 +34,20 @@ import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
+import androidx.glance.state.GlanceStateDefinition
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import com.samsung.android.seamless.R
+
+/** Keys for Glance widget state stored via PreferencesGlanceStateDefinition */
+object WidgetStateKeys {
+    val STATE = stringPreferencesKey("recognition_state")
+    val TRANSCRIPT = stringPreferencesKey("transcript_text")
+    val ERROR = stringPreferencesKey("error_message")
+}
 
 private val CyanAccent   = Color(0xFF00D4AA)
 private val GreenActive  = Color(0xFF4CAF50)
@@ -43,13 +56,21 @@ private val MutedGray    = Color(0xFF8899AA)
 
 class SeamlessWidget : GlanceAppWidget() {
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val stateManager = WidgetStateManager(context)
-        val state        = stateManager.recognitionState
-        val transcript   = stateManager.transcriptText
-        val error        = stateManager.errorMessage
+    override val stateDefinition: GlanceStateDefinition<*> = PreferencesGlanceStateDefinition
 
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
+            // Read state from Glance's internal Preferences (set via updateAppWidgetState)
+            val prefs = currentState<Preferences>()
+            val stateStr = prefs[WidgetStateKeys.STATE] ?: RecognitionState.IDLE.name
+            val state = try {
+                RecognitionState.valueOf(stateStr)
+            } catch (e: Exception) {
+                RecognitionState.IDLE
+            }
+            val transcript = prefs[WidgetStateKeys.TRANSCRIPT] ?: ""
+            val error = prefs[WidgetStateKeys.ERROR] ?: ""
+
             GlanceTheme {
                 WidgetContent(state = state, transcript = transcript, error = error, context = context)
             }

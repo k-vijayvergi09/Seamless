@@ -33,11 +33,10 @@ class SarvamSttRepository : SttRepository {
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val CHUNK_SIZE = 4096 // 128ms of audio at 16kHz/16-bit/mono
 
-        private const val WS_URL = "wss://api.sarvam.ai/speech-to-text-translate/ws" +
-                "?model=saaras:v3" +
-                "&mode=transcribe" +
+        private const val WS_URL = "wss://api.sarvam.ai/speech-to-text/ws" +
+                "?language-code=en-IN" +
+                "&mode=translit" +
                 "&sample_rate=$SAMPLE_RATE" +
-                "&language_code=en-IN" +
                 "&vad_signals=true" +
                 "&high_vad_sensitivity=true" +
                 "&input_audio_codec=pcm_s16le"
@@ -85,12 +84,12 @@ class SarvamSttRepository : SttRepository {
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.d(TAG, "WebSocket connected")
+                Log.i(TAG, "WebSocket connected")
                 startAudioCapture()
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                Log.d(TAG, "Received: $text")
+                Log.i(TAG, "Received: $text")
                 _transcripts.tryEmit(text)
             }
 
@@ -99,7 +98,7 @@ class SarvamSttRepository : SttRepository {
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                Log.d(TAG, "WebSocket closed: $code $reason")
+                Log.i(TAG, "WebSocket closed: $code $reason")
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -120,7 +119,7 @@ class SarvamSttRepository : SttRepository {
 
         captureJob = CoroutineScope(Dispatchers.IO).launch {
             val buffer = ByteArray(CHUNK_SIZE)
-            Log.d(TAG, "Audio capture started")
+            Log.i(TAG, "Audio capture started")
 
             while (isActive && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                 val bytesRead = audioRecord?.read(buffer, 0, CHUNK_SIZE) ?: -1
@@ -131,7 +130,7 @@ class SarvamSttRepository : SttRepository {
                     break
                 }
             }
-            Log.d(TAG, "Audio capture loop ended")
+            Log.i(TAG, "Audio capture loop ended")
         }
     }
 
@@ -140,8 +139,8 @@ class SarvamSttRepository : SttRepository {
         val json = JSONObject().apply {
             put("audio", JSONObject().apply {
                 put("data", base64Audio)
-                put("sample_rate", SAMPLE_RATE.toString())
                 put("encoding", "audio/wav")
+                put("sample_rate", SAMPLE_RATE)
             })
         }
         webSocket?.send(json.toString())
@@ -169,6 +168,6 @@ class SarvamSttRepository : SttRepository {
         webSocket?.close(1000, "Client disconnect")
         webSocket = null
 
-        Log.d(TAG, "Streaming stopped")
+        Log.i(TAG, "Streaming stopped")
     }
 }

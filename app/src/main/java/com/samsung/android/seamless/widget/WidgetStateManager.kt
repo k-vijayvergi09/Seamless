@@ -51,19 +51,27 @@ class WidgetStateManager(private val context: Context) {
     /**
      * Updates state (and optionally transcript/error) then triggers a re-render
      * of all SeamlessWidget instances on the home screen.
+     *
+     * Uses commit() instead of apply() to ensure writes complete before
+     * the widget reads the updated values.
      */
     suspend fun updateStateAndRefreshWidget(
         state: RecognitionState,
         transcript: String? = null,
         error: String? = null
     ) {
-        recognitionState = state
-        transcript?.let { transcriptText = it }
-        error?.let { errorMessage = it }
+        // Use synchronous commit() to avoid race condition where widget
+        // reads stale data before async apply() completes.
+        prefs.edit().apply {
+            putString(KEY_STATE, state.name)
+            transcript?.let { putString(KEY_TRANSCRIPT, it) }
+            error?.let { putString(KEY_ERROR, it) }
+        }.commit()
+
         try {
             val manager = GlanceAppWidgetManager(context)
             val ids = manager.getGlanceIds(SeamlessWidget::class.java)
-            Log.d(TAG, "Updating ${ids.size} widget(s) → state=$state")
+            Log.i(TAG, "Updating ${ids.size} widget(s) → state=$state")
             for (id in ids) {
                 SeamlessWidget().update(context, id)
             }
@@ -78,5 +86,16 @@ class WidgetStateManager(private val context: Context) {
             .putString(KEY_TRANSCRIPT, "")
             .putString(KEY_ERROR, "")
             .apply()
+    }
+
+    /**
+     * Synchronously sets the state to IDLE using commit() instead of apply().
+     * Use this in Service.onDestroy() where we need the write to complete
+     * before the widget refresh reads from SharedPreferences.
+     */
+    fun setIdleStateSync() {
+        prefs.edit()
+            .putString(KEY_STATE, RecognitionState.IDLE.name)
+            .commit()  // Synchronous write
     }
 }

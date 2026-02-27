@@ -61,13 +61,13 @@ class SpeechRecognitionService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "onCreate")
+        Log.i(TAG, "onCreate")
         stateManager = WidgetStateManager(applicationContext)
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand action=${intent?.action}")
+        Log.i(TAG, "onStartCommand action=${intent?.action}")
         when (intent?.action) {
             ACTION_START -> startListening()
             else -> {
@@ -85,18 +85,22 @@ class SpeechRecognitionService : Service() {
      * the widget, by an API error, or by the system.
      */
     override fun onDestroy() {
+        Log.i(TAG, "onDestroy called")
         isRunning = false
         repository.stopStreaming()
 
-        // Update SharedPreferences synchronously so the next widget tap reads IDLE immediately.
-        stateManager.recognitionState = RecognitionState.IDLE
+        // Use synchronous commit() so the write completes before the widget reads.
+        // The async apply() was causing the widget to read stale state.
+        stateManager.setIdleStateSync()
 
-        // Refresh the widget in a NEW scope — serviceScope is cancelled right after, so any
-        // coroutine inside it would never run.
-        CoroutineScope(Dispatchers.Main + SupervisorJob()).launch {
+        // Refresh the widget synchronously using runBlocking to ensure it completes
+        // before the service is fully destroyed.
+        kotlinx.coroutines.runBlocking {
             try {
                 val manager = GlanceAppWidgetManager(applicationContext)
-                for (id in manager.getGlanceIds(SeamlessWidget::class.java)) {
+                val ids = manager.getGlanceIds(SeamlessWidget::class.java)
+                Log.i(TAG, "Updating ${ids.size} widget(s) on destroy")
+                for (id in ids) {
                     SeamlessWidget().update(applicationContext, id)
                 }
             } catch (e: Exception) {
@@ -110,7 +114,7 @@ class SpeechRecognitionService : Service() {
 
     @android.annotation.SuppressLint("MissingPermission")
     private fun startListening() {
-        Log.d(TAG, "startListening — calling startForeground")
+        Log.i(TAG, "startListening — calling startForeground")
         isRunning = true
         startForeground(
             NOTIFICATION_ID,
@@ -118,9 +122,9 @@ class SpeechRecognitionService : Service() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         )
 
-        Log.d(TAG, "startForeground done — starting stream")
+        Log.i(TAG, "startForeground done — starting stream")
         repository.startStreaming()
-        Log.d(TAG, "startStreaming called — launching coroutines")
+        Log.i(TAG, "startStreaming called — launching coroutines")
 
         serviceScope.launch {
             stateManager.updateStateAndRefreshWidget(RecognitionState.LISTENING)
@@ -128,7 +132,7 @@ class SpeechRecognitionService : Service() {
 
         serviceScope.launch {
             repository.transcripts.collect { raw ->
-                Log.d(TAG, "transcript received: $raw")
+                Log.i(TAG, "transcript received: $raw")
                 handleMessage(raw)
             }
         }
@@ -164,7 +168,10 @@ class SpeechRecognitionService : Service() {
                     }
                 }
                 "error" -> {
-                    val error = data?.optString("error", "Unknown error") ?: "Unknown error"
+                    // API returns error in "message" field, fallback to "error" field
+                    val error = data?.optString("message")
+                        ?: data?.optString("error")
+                        ?: "Unknown error"
                     Log.e(TAG, "API error: $error")
                     serviceScope.launch {
                         stateManager.updateStateAndRefreshWidget(

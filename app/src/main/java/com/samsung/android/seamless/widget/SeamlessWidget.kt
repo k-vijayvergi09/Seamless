@@ -1,6 +1,7 @@
 package com.samsung.android.seamless.widget
 
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -12,7 +13,7 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -50,7 +51,7 @@ class SeamlessWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                WidgetContent(state = state, transcript = transcript, error = error)
+                WidgetContent(state = state, transcript = transcript, error = error, context = context)
             }
         }
     }
@@ -59,15 +60,17 @@ class SeamlessWidget : GlanceAppWidget() {
     private fun WidgetContent(
         state: RecognitionState,
         transcript: String,
-        error: String
+        error: String,
+        context: Context
     ) {
+        val toggleIntent = Intent(context, ToggleRecognitionActivity::class.java)
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .cornerRadius(20.dp)
                 .background(ImageProvider(R.drawable.widget_background))
                 .padding(16.dp)
-                .clickable(actionRunCallback<ToggleRecognitionAction>()),
+                .clickable(actionStartActivity(toggleIntent)),
             contentAlignment = Alignment.Center
         ) {
             Column(

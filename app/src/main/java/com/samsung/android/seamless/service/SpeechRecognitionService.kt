@@ -90,7 +90,7 @@ class SpeechRecognitionService : Service() {
         // Update widget state using Glance's internal state management.
         // runBlocking ensures completion before service is destroyed.
         kotlinx.coroutines.runBlocking {
-            stateManager.setIdleStateAndRefresh(this@SpeechRecognitionService)
+            stateManager.setIdleStateAndRefresh()
         }
 
         serviceScope.cancel()
@@ -99,6 +99,11 @@ class SpeechRecognitionService : Service() {
 
     @android.annotation.SuppressLint("MissingPermission")
     private fun startListening() {
+        if (isRunning) {
+            Log.w(TAG, "startListening called while already running — ignoring")
+            return
+        }
+
         Log.i(TAG, "startListening — calling startForeground")
         isRunning = true
         startForeground(
@@ -107,15 +112,10 @@ class SpeechRecognitionService : Service() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         )
 
-        Log.i(TAG, "startForeground done — starting stream")
         repository.startStreaming()
-        Log.i(TAG, "startStreaming called — launching coroutines")
 
         serviceScope.launch {
-            stateManager.updateStateAndRefreshWidget(
-                state = RecognitionState.LISTENING,
-                callerContext = this@SpeechRecognitionService
-            )
+            stateManager.updateStateAndRefreshWidget(state = RecognitionState.LISTENING)
         }
 
         serviceScope.launch {
@@ -139,28 +139,22 @@ class SpeechRecognitionService : Service() {
                         serviceScope.launch {
                             stateManager.updateStateAndRefreshWidget(
                                 state = RecognitionState.SPEECH_ACTIVE,
-                                transcript = updated,
-                                callerContext = this@SpeechRecognitionService
+                                transcript = updated
                             )
                         }
                     }
                 }
                 "events" -> {
+                    // Only handle END_SPEECH to return to LISTENING state.
+                    // START_SPEECH is redundant since "data" messages already set SPEECH_ACTIVE.
                     val signal = data?.optString("signal_type", "") ?: ""
-                    val nextState = when (signal) {
-                        "START_SPEECH" -> RecognitionState.SPEECH_ACTIVE
-                        "END_SPEECH" -> RecognitionState.LISTENING
-                        else -> return
-                    }
-                    serviceScope.launch {
-                        stateManager.updateStateAndRefreshWidget(
-                            state = nextState,
-                            callerContext = this@SpeechRecognitionService
-                        )
+                    if (signal == "END_SPEECH") {
+                        serviceScope.launch {
+                            stateManager.updateStateAndRefreshWidget(state = RecognitionState.LISTENING)
+                        }
                     }
                 }
                 "error" -> {
-                    // API returns error in "message" field, fallback to "error" field
                     val error = data?.optString("message")
                         ?: data?.optString("error")
                         ?: "Unknown error"
@@ -168,8 +162,7 @@ class SpeechRecognitionService : Service() {
                     serviceScope.launch {
                         stateManager.updateStateAndRefreshWidget(
                             state = RecognitionState.ERROR,
-                            error = error,
-                            callerContext = this@SpeechRecognitionService
+                            error = error
                         )
                     }
                     stopSelf()

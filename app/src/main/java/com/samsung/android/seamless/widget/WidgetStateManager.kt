@@ -58,12 +58,9 @@ class WidgetStateManager(private val context: Context) {
     suspend fun updateStateAndRefreshWidget(
         state: RecognitionState,
         transcript: String? = null,
-        error: String? = null,
-        callerContext: Context? = null
+        error: String? = null
     ) {
-        val ctx = callerContext ?: context
-
-        // Also update SharedPreferences for service-side reads
+        // Update SharedPreferences for service-side reads
         prefs.edit()
             .putString(KEY_STATE, state.name)
             .apply {
@@ -73,23 +70,20 @@ class WidgetStateManager(private val context: Context) {
             .commit()
 
         try {
-            val manager = GlanceAppWidgetManager(ctx)
+            val manager = GlanceAppWidgetManager(context)
             val glanceIds = manager.getGlanceIds(SeamlessWidget::class.java)
             Log.i(TAG, "Updating ${glanceIds.size} widget(s) → state=$state")
 
             for (glanceId in glanceIds) {
-                // Update Glance's internal state for this widget instance
-                updateAppWidgetState(ctx, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
                     prefs.toMutablePreferences().apply {
                         this[WidgetStateKeys.STATE] = state.name
                         transcript?.let { this[WidgetStateKeys.TRANSCRIPT] = it }
                         error?.let { this[WidgetStateKeys.ERROR] = it }
                     }
                 }
-                // Trigger widget update after state is written
-                SeamlessWidget().update(ctx, glanceId)
+                SeamlessWidget().update(context, glanceId)
             }
-            Log.i(TAG, "Widget update complete")
         } catch (e: Exception) {
             Log.e(TAG, "Glance update failed for state=$state", e)
         }
@@ -98,23 +92,23 @@ class WidgetStateManager(private val context: Context) {
     /**
      * Sets state to IDLE for all widgets. Used in Service.onDestroy().
      */
-    suspend fun setIdleStateAndRefresh(ctx: Context) {
+    suspend fun setIdleStateAndRefresh() {
         prefs.edit()
             .putString(KEY_STATE, RecognitionState.IDLE.name)
             .commit()
 
         try {
-            val manager = GlanceAppWidgetManager(ctx)
+            val manager = GlanceAppWidgetManager(context)
             val glanceIds = manager.getGlanceIds(SeamlessWidget::class.java)
             Log.i(TAG, "Setting ${glanceIds.size} widget(s) to IDLE on destroy")
 
             for (glanceId in glanceIds) {
-                updateAppWidgetState(ctx, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
                     prefs.toMutablePreferences().apply {
                         this[WidgetStateKeys.STATE] = RecognitionState.IDLE.name
                     }
                 }
-                SeamlessWidget().update(ctx, glanceId)
+                SeamlessWidget().update(context, glanceId)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set IDLE state on destroy", e)

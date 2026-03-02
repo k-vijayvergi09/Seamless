@@ -8,9 +8,12 @@ espressoCore = "3.7.0"
 kotlinxCoroutinesAndroid = "1.10.2"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.12.3"
-kotlin = "2.2.10"
+kotlin = "2.2.20"
 composeBom = "2024.09.00"
 okhttp = "5.3.2"
+guava = "33.4.8-android"
+ksp = "2.3.1"
+appfunctions = "1.0.0-alpha07"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -31,8 +34,17 @@ glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", versi
 glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+
+appfunctions = { group = "androidx.appfunctions", name = "appfunctions", version.ref = "appfunctions" }
+appfunctions-service = { group = "androidx.appfunctions", name = "appfunctions-service", version.ref = "appfunctions" }
+appfunctions-compiler = { group = "androidx.appfunctions", name = "appfunctions-compiler", version.ref = "appfunctions" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = {id = "com.google.devtools.ksp", version.ref = "ksp"}
+
+
 

@@ -8,6 +8,8 @@ object WidgetColors {
     val Active = Color(0xFF4CAF50)
     val Error = Color(0xFFFF5252)
     val Muted = Color(0xFF8899AA)
+    val ButtonBg = Color(0x33222A33)
+    val ButtonBgActive = Color(0x334CAF50)
 }
 
 fun Color.toGlanceProvider() = ColorProvider(day = this, night = this)

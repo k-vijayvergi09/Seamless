@@ -37,10 +37,15 @@ class SeamlessWidget : GlanceAppWidget() {
             val error = prefs[WidgetStateKeys.ERROR] ?: ""
 
             GlanceTheme {
-                WidgetContainer(context) {
+                WidgetContainer {
                     WidgetHeader()
                     Spacer(modifier = GlanceModifier.height(12.dp))
-                    StateContent(state = state, transcript = transcript, error = error)
+                    StateContent(
+                        context = context,
+                        state = state,
+                        transcript = transcript,
+                        error = error
+                    )
                 }
             }
         }

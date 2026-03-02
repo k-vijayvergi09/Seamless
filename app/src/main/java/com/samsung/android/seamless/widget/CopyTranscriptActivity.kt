@@ -8,7 +8,6 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,8 +18,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,11 +29,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.samsung.android.seamless.widget.components.WidgetColors
 
 class CopyTranscriptActivity : ComponentActivity() {
 
@@ -113,7 +114,6 @@ private fun TranscriptPopup(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x12000000))
             .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -122,7 +122,7 @@ private fun TranscriptPopup(
             shape = RoundedCornerShape(26.dp),
             tonalElevation = 4.dp,
             shadowElevation = 10.dp,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
+            color = androidx.compose.ui.graphics.Color(0xF0212C36)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -132,27 +132,35 @@ private fun TranscriptPopup(
                     text = "Transcript",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = WidgetColors.Accent
                 )
 
-                Text(
-                    text = transcript,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 280.dp)
-                        .verticalScroll(rememberScrollState()),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                SelectionContainer {
+                    Text(
+                        text = transcript,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp)
+                            .verticalScroll(rememberScrollState()),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = androidx.compose.ui.graphics.Color(0xFFD5E3EF)
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onClose) {
-                        Text("Close")
+                        Text("Close", color = WidgetColors.Muted)
                     }
-                    Button(onClick = onCopy) {
+                    Button(
+                        onClick = onCopy,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WidgetColors.Accent,
+                            contentColor = androidx.compose.ui.graphics.Color(0xFF0D1B25)
+                        )
+                    ) {
                         Text("Copy")
                     }
                 }

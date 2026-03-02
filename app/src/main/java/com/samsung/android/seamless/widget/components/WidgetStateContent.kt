@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxWidth
@@ -36,9 +37,12 @@ fun StateContent(
 @Composable
 private fun IdleContent(context: Context, transcript: String) {
     if (transcript.isNotBlank()) {
-        TranscriptText(transcript)
+        TranscriptText(
+            text = transcript,
+            modifier = GlanceModifier.clickable(actionStartActivity(transcriptIntent(context)))
+        )
         Spacer(modifier = GlanceModifier.height(8.dp))
-        CopyTranscriptButton(context)
+        HintText(text = "Tap transcript to copy", color = WidgetColors.Muted, fontSize = 11)
         Spacer(modifier = GlanceModifier.height(10.dp))
         ToggleRecognitionButton(context, text = "Start listening", active = false)
     } else {
@@ -57,10 +61,17 @@ private fun ListeningContent(context: Context) {
 
 @Composable
 private fun SpeechActiveContent(context: Context, transcript: String) {
-    TranscriptText(transcript.ifBlank { "..." })
+    TranscriptText(
+        text = transcript.ifBlank { "..." },
+        modifier = if (transcript.isNotBlank()) {
+            GlanceModifier.clickable(actionStartActivity(transcriptIntent(context)))
+        } else {
+            GlanceModifier
+        }
+    )
     if (transcript.isNotBlank()) {
         Spacer(modifier = GlanceModifier.height(8.dp))
-        CopyTranscriptButton(context)
+        HintText(text = "Tap transcript to copy", color = WidgetColors.Muted, fontSize = 11)
     }
     Spacer(modifier = GlanceModifier.height(10.dp))
     ToggleRecognitionButton(context, text = "Stop listening", active = true)
@@ -82,19 +93,6 @@ private fun ErrorContent(context: Context, error: String) {
 }
 
 @Composable
-private fun CopyTranscriptButton(context: Context) {
-    val copyIntent = Intent(context, CopyTranscriptActivity::class.java).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-    }
-    ActionButton(
-        text = "Copy transcript",
-        iconRes = R.drawable.ic_widget_copy,
-        action = actionStartActivity(copyIntent),
-        active = false
-    )
-}
-
-@Composable
 private fun ToggleRecognitionButton(
     context: Context,
     text: String,
@@ -110,3 +108,8 @@ private fun ToggleRecognitionButton(
         active = active
     )
 }
+
+private fun transcriptIntent(context: Context): Intent =
+    Intent(context, CopyTranscriptActivity::class.java).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+    }

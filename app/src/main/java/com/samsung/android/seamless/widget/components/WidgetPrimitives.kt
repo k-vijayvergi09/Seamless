@@ -37,7 +37,10 @@ fun SoundWavesImage() {
 }
 
 @Composable
-fun TranscriptText(text: String) {
+fun TranscriptText(
+    text: String,
+    modifier: GlanceModifier = GlanceModifier
+) {
     Text(
         text = text,
         style = TextStyle(
@@ -45,7 +48,7 @@ fun TranscriptText(text: String) {
             fontSize = 13.sp,
             textAlign = TextAlign.Center
         ),
-        modifier = GlanceModifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     )
 }
 

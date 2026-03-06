@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(dir \"C:\\\\Users\\\\user\\\\AndroidStudioProjects\\\\Seamless\\\\app\\\\src\\\\main\\\\res\")",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "WebFetch(domain:docs.sarvam.ai)",
+      "WebFetch(domain:canopas.com)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(./gradlew clean:*)"
     ]
   }
 }

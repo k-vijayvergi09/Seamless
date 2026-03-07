@@ -13,7 +13,9 @@ import android.util.Log
 import com.samsung.android.seamless.MainActivity
 import com.samsung.android.seamless.R
 import com.samsung.android.seamless.data.SarvamSttRepository
+import com.samsung.android.seamless.widget.CopyTranscriptActivity
 import com.samsung.android.seamless.widget.RecognitionState
+import com.samsung.android.seamless.widget.ToggleRecognitionActivity
 import com.samsung.android.seamless.widget.WidgetStateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -165,10 +167,11 @@ class SpeechRecognitionService : Service() {
                         ?: data?.optString("error")
                         ?: "Unknown error"
                     Log.e(TAG, "API error: $error")
+                    val userFriendlyError = mapErrorToUserMessage(error)
                     serviceScope.launch {
                         stateManager.updateStateAndRefreshWidget(
                             state = RecognitionState.ERROR,
-                            error = error
+                            error = userFriendlyError
                         )
                     }
                     stopSelf()
@@ -191,17 +194,46 @@ class SpeechRecognitionService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val tapIntent = PendingIntent.getActivity(
+        val openAppIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+        val stopIntent = PendingIntent.getActivity(
+            this,
+            1,
+            Intent(this, ToggleRecognitionActivity::class.java).apply {
+                putExtra(ToggleRecognitionActivity.EXTRA_FORCE_STOP, true)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val copyIntent = PendingIntent.getActivity(
+            this,
+            2,
+            Intent(this, CopyTranscriptActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("Seamless")
-            .setContentText("Listening for speech…")
+            .setContentText("Listening... speak to transcribe")
             .setSmallIcon(R.drawable.ic_widget_mic)
-            .setContentIntent(tapIntent)
+            .setContentIntent(openAppIntent)
+            .addAction(0, "Stop", stopIntent)
+            .addAction(0, "Copy", copyIntent)
             .setOngoing(true)
             .build()
+    }
+
+    private fun mapErrorToUserMessage(error: String): String {
+        val lower = error.lowercase()
+        return when {
+            "microphone" in lower || "audio" in lower -> "Microphone issue. Check permissions and retry."
+            "timeout" in lower || "connection" in lower || "network" in lower ||
+                    "host" in lower || "socket" in lower -> "Network issue. Check connection and retry."
+            else -> "Something went wrong. Please retry."
+        }
     }
 }

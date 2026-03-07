@@ -55,6 +55,8 @@ private fun IdleContent(context: Context, transcript: String) {
 @Composable
 private fun ListeningContent(context: Context) {
     SoundWavesImage()
+    Spacer(modifier = GlanceModifier.height(6.dp))
+    HintText(text = "Listening... speak now", color = WidgetColors.Muted, fontSize = 11)
     Spacer(modifier = GlanceModifier.height(12.dp))
     ToggleRecognitionButton(context, text = "Stop listening", active = true)
 }
@@ -80,7 +82,7 @@ private fun SpeechActiveContent(context: Context, transcript: String) {
 @Composable
 private fun ErrorContent(context: Context, error: String) {
     Text(
-        text = error.ifBlank { "Something went wrong" },
+        text = error.ifBlank { "Something went wrong. Please retry." },
         style = TextStyle(
             color = WidgetColors.Error.toGlanceProvider(),
             fontSize = 12.sp,

@@ -29,6 +29,13 @@ class ToggleRecognitionActivity : ComponentActivity() {
     }
 
     private fun handleToggle() {
+        if (intent.getBooleanExtra(EXTRA_FORCE_STOP, false)) {
+            Log.i(TAG, "Force-stop intent received")
+            SpeechRecognitionService.stopRecognition(this)
+            Toast.makeText(this, "Stopped listening", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val stateManager = WidgetStateManager(this)
         val shouldStop = SpeechRecognitionService.isRunning || stateManager.isRecognitionSessionActive()
         Log.i(TAG, "handleToggle: isRunning=${SpeechRecognitionService.isRunning}, shouldStop=$shouldStop")
@@ -64,5 +71,6 @@ class ToggleRecognitionActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "ToggleRecognitionAct"
+        const val EXTRA_FORCE_STOP = "extra_force_stop"
     }
 }

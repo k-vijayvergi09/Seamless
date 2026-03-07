@@ -12,6 +12,8 @@ import com.samsung.android.seamless.domain.SttRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
@@ -32,6 +34,9 @@ class SarvamSttRepository : SttRepository {
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val CHUNK_SIZE = 4096 // 128ms of audio at 16kHz/16-bit/mono
+        private const val MAX_RECONNECT_ATTEMPTS = 5
+        private const val BASE_RECONNECT_DELAY_MS = 1_000L
+        private const val MAX_RECONNECT_DELAY_MS = 15_000L
 
         private const val WS_URL = "wss://api.sarvam.ai/speech-to-text/ws" +
                 "?language-code=en-IN" +
@@ -45,6 +50,11 @@ class SarvamSttRepository : SttRepository {
     private var audioRecord: AudioRecord? = null
     private var webSocket: WebSocket? = null
     private var captureJob: Job? = null
+    private var reconnectJob: Job? = null
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile
+    private var shouldReconnect = false
+    private var reconnectAttempt = 0
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS) // Required for persistent WebSocket
@@ -58,6 +68,18 @@ class SarvamSttRepository : SttRepository {
 
     @RequiresPermission(Manifest.permission.RECORD_AUDIO)
     override fun startStreaming() {
+        if (webSocket != null) {
+            Log.w(TAG, "startStreaming called with an existing websocket; ignoring")
+            return
+        }
+        shouldReconnect = true
+        reconnectAttempt = 0
+        reconnectJob?.cancel()
+        connectWebSocket()
+    }
+
+    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
+    private fun connectWebSocket() {
         val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
         val bufferSize = maxOf(minBufferSize * 2, CHUNK_SIZE * 2)
 
@@ -71,9 +93,8 @@ class SarvamSttRepository : SttRepository {
 
         if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
             Log.e(TAG, "AudioRecord failed to initialize")
-            audioRecord?.release()
-            audioRecord = null
-            _transcripts.tryEmit("""{"type":"error","data":{"error":"Microphone unavailable"}}""")
+            cleanupAudioRecord()
+            emitError("Microphone unavailable")
             return
         }
 
@@ -85,6 +106,7 @@ class SarvamSttRepository : SttRepository {
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.i(TAG, "WebSocket connected")
+                reconnectAttempt = 0
                 startAudioCapture()
             }
 
@@ -99,17 +121,21 @@ class SarvamSttRepository : SttRepository {
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "WebSocket closed: $code $reason")
+                this@SarvamSttRepository.webSocket = null
+                if (shouldReconnect) {
+                    scheduleReconnect("Socket closed: $code $reason")
+                }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "WebSocket failure", t)
-                val errorJson = JSONObject().apply {
-                    put("type", "error")
-                    put("data", JSONObject().apply {
-                        put("error", t.localizedMessage ?: "Connection failed")
-                    })
+                this@SarvamSttRepository.webSocket = null
+                cleanupAudioRecord()
+                if (shouldReconnect && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+                    scheduleReconnect(t.localizedMessage ?: "Connection failed")
+                    return
                 }
-                _transcripts.tryEmit(errorJson.toString())
+                emitError(t.localizedMessage ?: "Connection failed")
             }
         })
     }
@@ -127,6 +153,7 @@ class SarvamSttRepository : SttRepository {
                     sendAudioChunk(buffer.copyOf(bytesRead))
                 } else if (bytesRead < 0) {
                     Log.e(TAG, "AudioRecord.read error: $bytesRead")
+                    emitError("Audio capture failed ($bytesRead)")
                     break
                 }
             }
@@ -152,11 +179,42 @@ class SarvamSttRepository : SttRepository {
     }
 
     override fun stopStreaming() {
+        shouldReconnect = false
+        reconnectAttempt = 0
+        reconnectJob?.cancel()
+        reconnectJob = null
         captureJob?.cancel()
         captureJob = null
 
         flush()
+        cleanupAudioRecord()
 
+        webSocket?.cancel()
+        webSocket?.close(1000, "Client disconnect")
+        webSocket = null
+
+        Log.i(TAG, "Streaming stopped")
+    }
+
+    private fun scheduleReconnect(reason: String) {
+        if (!shouldReconnect) return
+        if (reconnectJob?.isActive == true) return
+
+        reconnectAttempt += 1
+        val delayMs = minOf(
+            MAX_RECONNECT_DELAY_MS,
+            BASE_RECONNECT_DELAY_MS * (1L shl (reconnectAttempt - 1))
+        )
+        Log.w(TAG, "Scheduling reconnect attempt=$reconnectAttempt in ${delayMs}ms; reason=$reason")
+
+        reconnectJob = repositoryScope.launch {
+            delay(delayMs)
+            if (!shouldReconnect) return@launch
+            connectWebSocket()
+        }
+    }
+
+    private fun cleanupAudioRecord() {
         audioRecord?.let { record ->
             if (record.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
                 record.stop()
@@ -164,10 +222,15 @@ class SarvamSttRepository : SttRepository {
             record.release()
         }
         audioRecord = null
+    }
 
-        webSocket?.close(1000, "Client disconnect")
-        webSocket = null
-
-        Log.i(TAG, "Streaming stopped")
+    private fun emitError(message: String) {
+        val errorJson = JSONObject().apply {
+            put("type", "error")
+            put("data", JSONObject().apply {
+                put("error", message)
+            })
+        }
+        _transcripts.tryEmit(errorJson.toString())
     }
 }

@@ -48,8 +48,11 @@ android {
             }
         }
 
-        // Add to BuildConfig (escape quotes for String)
-        val sarvamApiKey = secretsProperties.getProperty("sarvamApiKey") ?: ""
+        // Resolve key with local file first, then Gradle property, then environment variable.
+        val sarvamApiKey = secretsProperties.getProperty("sarvamApiKey")
+            ?.takeIf { it.isNotBlank() }
+            ?: (project.findProperty("sarvamApiKey") as? String)?.takeIf { it.isNotBlank() }
+            ?: System.getenv("SARVAM_API_KEY").orEmpty()
         buildConfigField("String", "SARVAM_API_KEY", "\"$sarvamApiKey\"")
     }
 }

@@ -29,9 +29,11 @@ class ToggleRecognitionActivity : ComponentActivity() {
     }
 
     private fun handleToggle() {
-        Log.i(TAG, "handleToggle: isRunning=${SpeechRecognitionService.isRunning}")
+        val stateManager = WidgetStateManager(this)
+        val shouldStop = SpeechRecognitionService.isRunning || stateManager.isRecognitionSessionActive()
+        Log.i(TAG, "handleToggle: isRunning=${SpeechRecognitionService.isRunning}, shouldStop=$shouldStop")
 
-        if (SpeechRecognitionService.isRunning) {
+        if (shouldStop) {
             Log.i(TAG, "Service running: stopping")
             SpeechRecognitionService.stopRecognition(this)
             Toast.makeText(this, "Stopped listening", Toast.LENGTH_SHORT).show()
@@ -43,7 +45,6 @@ class ToggleRecognitionActivity : ComponentActivity() {
         Log.i(TAG, "hasAudioPermission=$hasPermission")
 
         if (hasPermission) {
-            val stateManager = WidgetStateManager(this)
             stateManager.transcriptText = ""
             stateManager.errorMessage = ""
             Log.i(TAG, "Starting recognition service")

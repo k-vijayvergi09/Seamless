@@ -122,4 +122,8 @@ class WidgetStateManager(private val context: Context) {
             .putString(KEY_ERROR, "")
             .apply()
     }
+
+    fun isRecognitionSessionActive(): Boolean =
+        recognitionState == RecognitionState.LISTENING ||
+                recognitionState == RecognitionState.SPEECH_ACTIVE
 }

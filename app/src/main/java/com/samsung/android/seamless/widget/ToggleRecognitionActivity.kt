@@ -1,11 +1,13 @@
 package com.samsung.android.seamless.widget
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.samsung.android.seamless.MainActivity
 import com.samsung.android.seamless.service.SpeechRecognitionService
 
 /**
@@ -48,8 +50,14 @@ class ToggleRecognitionActivity : ComponentActivity() {
             SpeechRecognitionService.startRecognition(this)
             Toast.makeText(this, "Started listening", Toast.LENGTH_SHORT).show()
         } else {
-            Log.w(TAG, "No audio permission; app launch suppressed")
-            Toast.makeText(this, "Microphone permission not granted", Toast.LENGTH_SHORT).show()
+            Log.w(TAG, "No audio permission; redirecting to MainActivity for permission prompt")
+            startActivity(
+                Intent(this, MainActivity::class.java).apply {
+                    putExtra(MainActivity.EXTRA_REQUEST_AUDIO_PERMISSION, true)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            Toast.makeText(this, "Please grant microphone permission", Toast.LENGTH_SHORT).show()
         }
     }
 

@@ -56,6 +56,8 @@ class SpeechRecognitionService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var stateManager: WidgetStateManager
     private val repository = SarvamSttRepository()
+    private var committedTranscript = ""
+    private var activeUtterance = ""
 
     override fun onCreate() {
         super.onCreate()
@@ -106,6 +108,8 @@ class SpeechRecognitionService : Service() {
 
         Log.i(TAG, "startListening — calling startForeground")
         isRunning = true
+        committedTranscript = stateManager.transcriptText.trim()
+        activeUtterance = ""
         startForeground(
             NOTIFICATION_ID,
             buildNotification(),
@@ -135,7 +139,8 @@ class SpeechRecognitionService : Service() {
                 "data" -> {
                     val transcript = data?.optString("transcript", "") ?: ""
                     if (transcript.isNotBlank()) {
-                        val updated = buildTranscript(stateManager.transcriptText, transcript)
+                        activeUtterance = mergeTranscriptChunks(activeUtterance, transcript)
+                        val updated = combineCommittedAndActive(committedTranscript, activeUtterance)
                         serviceScope.launch {
                             stateManager.updateStateAndRefreshWidget(
                                 state = RecognitionState.SPEECH_ACTIVE,
@@ -149,8 +154,13 @@ class SpeechRecognitionService : Service() {
                     // START_SPEECH is redundant since "data" messages already set SPEECH_ACTIVE.
                     val signal = data?.optString("signal_type", "") ?: ""
                     if (signal == "END_SPEECH") {
+                        committedTranscript = combineCommittedAndActive(committedTranscript, activeUtterance)
+                        activeUtterance = ""
                         serviceScope.launch {
-                            stateManager.updateStateAndRefreshWidget(state = RecognitionState.LISTENING)
+                            stateManager.updateStateAndRefreshWidget(
+                                state = RecognitionState.LISTENING,
+                                transcript = committedTranscript
+                            )
                         }
                     }
                 }
@@ -173,8 +183,36 @@ class SpeechRecognitionService : Service() {
         }
     }
 
-    private fun buildTranscript(existing: String, newChunk: String): String =
-        if (existing.isBlank()) newChunk else "$existing $newChunk"
+    private fun combineCommittedAndActive(committed: String, active: String): String =
+        mergeTranscriptChunks(committed, active)
+
+    private fun mergeTranscriptChunks(existing: String, incoming: String): String {
+        val base = normalizeSpaces(existing)
+        val next = normalizeSpaces(incoming)
+        if (base.isBlank()) return next
+        if (next.isBlank()) return base
+        if (base == next) return base
+        if (next.startsWith(base)) return next
+        if (base.startsWith(next)) return base
+
+        val overlap = suffixPrefixOverlap(base, next)
+        return if (overlap > 0) {
+            "$base ${next.drop(overlap)}".trim()
+        } else {
+            "$base $next"
+        }
+    }
+
+    private fun normalizeSpaces(input: String): String =
+        input.trim().replace(Regex("\\s+"), " ")
+
+    private fun suffixPrefixOverlap(left: String, right: String): Int {
+        val max = minOf(left.length, right.length)
+        for (len in max downTo 1) {
+            if (left.takeLast(len) == right.take(len)) return len
+        }
+        return 0
+    }
 
     private fun createNotificationChannel() {
         val channel = NotificationChannel(

@@ -13,6 +13,7 @@ import android.util.Log
 import com.samsung.android.seamless.MainActivity
 import com.samsung.android.seamless.R
 import com.samsung.android.seamless.data.SarvamSttRepository
+import com.samsung.android.seamless.overlay.OverlayStateStore
 import com.samsung.android.seamless.widget.CopyTranscriptActivity
 import com.samsung.android.seamless.widget.RecognitionState
 import com.samsung.android.seamless.widget.ToggleRecognitionActivity
@@ -65,6 +66,11 @@ class SpeechRecognitionService : Service() {
         Log.i(TAG, "onCreate")
         stateManager = WidgetStateManager(applicationContext)
         createNotificationChannel()
+        publishOverlayState(
+            recognitionState = stateManager.recognitionState,
+            transcript = stateManager.transcriptText,
+            error = stateManager.errorMessage
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -95,6 +101,11 @@ class SpeechRecognitionService : Service() {
         kotlinx.coroutines.runBlocking {
             stateManager.setIdleStateAndRefresh()
         }
+        publishOverlayState(
+            recognitionState = RecognitionState.IDLE,
+            transcript = stateManager.transcriptText,
+            error = ""
+        )
 
         serviceScope.cancel()
         super.onDestroy()
@@ -121,6 +132,11 @@ class SpeechRecognitionService : Service() {
         serviceScope.launch {
             stateManager.updateStateAndRefreshWidget(state = RecognitionState.LISTENING)
         }
+        publishOverlayState(
+            recognitionState = RecognitionState.LISTENING,
+            transcript = transcriptAccumulator.combined(),
+            error = ""
+        )
 
         serviceScope.launch {
             repository.transcripts.collect { raw ->
@@ -146,6 +162,11 @@ class SpeechRecognitionService : Service() {
                                 transcript = updated
                             )
                         }
+                        publishOverlayState(
+                            recognitionState = RecognitionState.SPEECH_ACTIVE,
+                            transcript = updated,
+                            error = ""
+                        )
                     }
                 }
                 "events" -> {
@@ -160,6 +181,11 @@ class SpeechRecognitionService : Service() {
                                 transcript = transcript
                             )
                         }
+                        publishOverlayState(
+                            recognitionState = RecognitionState.LISTENING,
+                            transcript = transcript,
+                            error = ""
+                        )
                     }
                 }
                 "error" -> {
@@ -174,6 +200,11 @@ class SpeechRecognitionService : Service() {
                             error = userFriendlyError
                         )
                     }
+                    publishOverlayState(
+                        recognitionState = RecognitionState.ERROR,
+                        transcript = transcriptAccumulator.combined(),
+                        error = userFriendlyError
+                    )
                     stopSelf()
                 }
             }
@@ -235,5 +266,18 @@ class SpeechRecognitionService : Service() {
                     "host" in lower || "socket" in lower -> "Network issue. Check connection and retry."
             else -> "Something went wrong. Please retry."
         }
+    }
+
+    private fun publishOverlayState(
+        recognitionState: RecognitionState,
+        transcript: String,
+        error: String
+    ) {
+        OverlayStateStore.setRecognitionState(
+            recognitionState = recognitionState,
+            committedTranscript = transcript,
+            partialTranscript = "",
+            errorMessage = error
+        )
     }
 }

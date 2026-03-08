@@ -30,7 +30,9 @@ class SeamlessOverlayService : Service() {
         when (intent?.action) {
             ACTION_SHOW_OVERLAY -> {
                 OverlayStateStore.setOverlayVisible(true)
-                OverlayStateStore.setExpanded(false)
+                OverlayStateStore.setExpanded(
+                    intent.getBooleanExtra(EXTRA_START_EXPANDED, false)
+                )
             }
 
             ACTION_HIDE_OVERLAY -> {
@@ -55,5 +57,6 @@ class SeamlessOverlayService : Service() {
     companion object {
         const val ACTION_SHOW_OVERLAY = "com.samsung.android.seamless.ACTION_SHOW_OVERLAY"
         const val ACTION_HIDE_OVERLAY = "com.samsung.android.seamless.ACTION_HIDE_OVERLAY"
+        const val EXTRA_START_EXPANDED = "extra_start_expanded"
     }
 }

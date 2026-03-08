@@ -34,6 +34,8 @@ import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
+import android.content.Intent
+import com.samsung.android.seamless.overlay.OverlayPermissionActivity
 import com.samsung.android.seamless.service.SpeechRecognitionService
 import com.samsung.android.seamless.ui.theme.SeamlessTheme
 
@@ -72,7 +74,11 @@ class MainActivity : ComponentActivity() {
                     val audioGranted = results[Manifest.permission.RECORD_AUDIO] == true
                     hasAudioPermission = audioGranted
                     if (audioGranted && fromWidget) {
-                        SpeechRecognitionService.startRecognition(this)
+                        startActivity(
+                            Intent(this, OverlayPermissionActivity::class.java).apply {
+                                putExtra(OverlayPermissionActivity.EXTRA_START_EXPANDED, true)
+                            }
+                        )
                         finish()
                     }
                 }
@@ -82,7 +88,11 @@ class MainActivity : ComponentActivity() {
                     if (fromWidget && !hasAudioPermission) {
                         permissionLauncher.launch(permissionsToRequest)
                     } else if (fromWidget && hasAudioPermission) {
-                        SpeechRecognitionService.startRecognition(this@MainActivity)
+                        startActivity(
+                            Intent(this@MainActivity, OverlayPermissionActivity::class.java).apply {
+                                putExtra(OverlayPermissionActivity.EXTRA_START_EXPANDED, true)
+                            }
+                        )
                         finish()
                     }
                 }

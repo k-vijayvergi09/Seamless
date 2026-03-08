@@ -41,6 +41,10 @@ class OverlayPermissionActivity : ComponentActivity() {
             startService(
                 Intent(this, SeamlessOverlayService::class.java).apply {
                     action = SeamlessOverlayService.ACTION_SHOW_OVERLAY
+                    putExtra(
+                        SeamlessOverlayService.EXTRA_START_EXPANDED,
+                        intent.getBooleanExtra(EXTRA_START_EXPANDED, false)
+                    )
                 }
             )
         }
@@ -52,5 +56,6 @@ class OverlayPermissionActivity : ComponentActivity() {
 
     companion object {
         private const val EXTRA_WAITING_FOR_PERMISSION_RESULT = "waiting_for_overlay_permission_result"
+        const val EXTRA_START_EXPANDED = "extra_start_expanded"
     }
 }

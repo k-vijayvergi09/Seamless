@@ -8,6 +8,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.samsung.android.seamless.MainActivity
+import com.samsung.android.seamless.overlay.OverlayPermissionActivity
 import com.samsung.android.seamless.service.SpeechRecognitionService
 
 /**
@@ -36,27 +37,18 @@ class ToggleRecognitionActivity : ComponentActivity() {
             return
         }
 
-        val stateManager = WidgetStateManager(this)
-        val shouldStop = SpeechRecognitionService.isRunning || stateManager.isRecognitionSessionActive()
-        Log.i(TAG, "handleToggle: isRunning=${SpeechRecognitionService.isRunning}, shouldStop=$shouldStop")
-
-        if (shouldStop) {
-            Log.i(TAG, "Service running: stopping")
-            SpeechRecognitionService.stopRecognition(this)
-            Toast.makeText(this, "Stopped listening", Toast.LENGTH_SHORT).show()
-            return
-        }
-
         val hasPermission =
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         Log.i(TAG, "hasAudioPermission=$hasPermission")
 
         if (hasPermission) {
-            stateManager.transcriptText = ""
-            stateManager.errorMessage = ""
-            Log.i(TAG, "Starting recognition service")
-            SpeechRecognitionService.startRecognition(this)
-            Toast.makeText(this, "Started listening", Toast.LENGTH_SHORT).show()
+            Log.i(TAG, "Opening overlay launcher")
+            startActivity(
+                Intent(this, OverlayPermissionActivity::class.java).apply {
+                    putExtra(OverlayPermissionActivity.EXTRA_START_EXPANDED, true)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
         } else {
             Log.w(TAG, "No audio permission; redirecting to MainActivity for permission prompt")
             startActivity(

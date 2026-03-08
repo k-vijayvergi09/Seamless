@@ -123,9 +123,11 @@ class WidgetStateManager(private val context: Context) {
             .apply()
     }
 
-    suspend fun clearTranscriptAndRefresh() {
+    suspend fun clearTranscriptAndRefresh(
+        targetState: RecognitionState = RecognitionState.IDLE
+    ) {
         updateStateAndRefreshWidget(
-            state = RecognitionState.IDLE,
+            state = targetState,
             transcript = "",
             error = ""
         )

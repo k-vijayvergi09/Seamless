@@ -3,8 +3,28 @@ package com.samsung.android.seamless.overlay
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class SeamlessOverlayService : Service() {
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private lateinit var overlayManager: OverlayManager
+
+    override fun onCreate() {
+        super.onCreate()
+        overlayManager = OverlayManager(this)
+        serviceScope.launch {
+            OverlayStateStore.state.collect { state ->
+                overlayManager.render(state)
+                if (!state.overlayVisible) {
+                    stopSelf()
+                }
+            }
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -25,6 +45,8 @@ class SeamlessOverlayService : Service() {
     override fun onDestroy() {
         OverlayStateStore.setOverlayVisible(false)
         OverlayStateStore.setExpanded(false)
+        overlayManager.hide()
+        serviceScope.cancel()
         super.onDestroy()
     }
 

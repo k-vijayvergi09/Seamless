@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
@@ -23,9 +25,11 @@ class OverlayManager(
     private val appContext = context.applicationContext
     private val windowManager = appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var bubbleView: CollapsedBubbleView? = null
     private var expandedView: ExpandedOverlayView? = null
+    private var isAnimatingExpansion = false
 
     fun render(state: OverlayUiState) {
         if (!state.overlayVisible) {
@@ -34,13 +38,14 @@ class OverlayManager(
         }
 
         if (state.expanded) {
-            showExpanded(state)
+            expandFromBubble(state)
         } else {
             showCollapsed(state)
         }
     }
 
     fun hide() {
+        mainHandler.removeCallbacksAndMessages(null)
         bubbleView?.let { view ->
             runCatching { windowManager.removeView(view) }
         }
@@ -52,6 +57,7 @@ class OverlayManager(
     }
 
     private fun showCollapsed(state: OverlayUiState) {
+        isAnimatingExpansion = false
         expandedView?.let { view ->
             runCatching { windowManager.removeView(view) }
             expandedView = null
@@ -66,6 +72,39 @@ class OverlayManager(
             bubbleView = bubble
         }
         bubbleView?.setRecording(state.isRecording)
+        bubbleView?.alpha = 1f
+        bubbleView?.scaleX = 1f
+        bubbleView?.scaleY = 1f
+    }
+
+    private fun expandFromBubble(state: OverlayUiState) {
+        if (expandedView != null) {
+            expandedView?.bind(state)
+            return
+        }
+
+        if (!isAnimatingExpansion) {
+            val bubble = bubbleView
+            if (bubble != null) {
+                isAnimatingExpansion = true
+                bubble.animate()
+                    .alpha(0f)
+                    .scaleX(0.86f)
+                    .scaleY(0.86f)
+                    .setDuration(EXPAND_OUT_DURATION_MS)
+                    .withEndAction {
+                        bubbleView?.let { view ->
+                            runCatching { windowManager.removeView(view) }
+                            bubbleView = null
+                        }
+                        showExpanded(state)
+                    }
+                    .start()
+                return
+            }
+        }
+
+        showExpanded(state)
     }
 
     private fun showExpanded(state: OverlayUiState) {
@@ -73,6 +112,7 @@ class OverlayManager(
             runCatching { windowManager.removeView(view) }
             bubbleView = null
         }
+        isAnimatingExpansion = false
 
         val expanded = expandedView
         if (expanded == null) {
@@ -99,6 +139,17 @@ class OverlayManager(
             windowManager.addView(view, createExpandedLayoutParams())
             expandedView = view
             view.bind(state)
+            view.alpha = 0f
+            view.translationY = dp(EXPANDED_ENTRY_OFFSET_DP).toFloat()
+            view.scaleX = 0.96f
+            view.scaleY = 0.96f
+            view.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(EXPAND_IN_DURATION_MS)
+                .start()
         } else {
             expanded.bind(state)
         }
@@ -231,5 +282,8 @@ class OverlayManager(
         private const val TAP_SLOP_PX = 12
         private const val EXPANDED_Y = 120
         private const val PANEL_WIDTH_DP = 340
+        private const val EXPANDED_ENTRY_OFFSET_DP = 18
+        private const val EXPAND_OUT_DURATION_MS = 120L
+        private const val EXPAND_IN_DURATION_MS = 220L
     }
 }

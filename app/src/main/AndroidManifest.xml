@@ -47,6 +47,13 @@
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.Seamless.WidgetOverlay" />
+        <activity
+            android:name=".widget.ClearTranscriptActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <receiver
             android:name=".widget.SeamlessWidgetReceiver"

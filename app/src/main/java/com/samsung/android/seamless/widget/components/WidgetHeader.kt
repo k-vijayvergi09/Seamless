@@ -10,6 +10,7 @@ import androidx.glance.layout.Alignment
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxWidth
+import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
@@ -20,22 +21,24 @@ import com.samsung.android.seamless.R
 @Composable
 fun WidgetHeader() {
     Row(
-        modifier = GlanceModifier.fillMaxWidth(),
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .padding(top = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
             provider = ImageProvider(R.drawable.ic_widget_mic),
             contentDescription = "Microphone",
-            modifier = GlanceModifier.size(20.dp)
+            modifier = GlanceModifier.size(16.dp)
         )
-        Spacer(modifier = GlanceModifier.width(8.dp))
+        Spacer(modifier = GlanceModifier.width(6.dp))
         Text(
             text = "Seamless",
             style = TextStyle(
                 color = WidgetColors.Accent.toGlanceProvider(),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
             )
         )
     }

@@ -123,6 +123,14 @@ class WidgetStateManager(private val context: Context) {
             .apply()
     }
 
+    suspend fun clearTranscriptAndRefresh() {
+        updateStateAndRefreshWidget(
+            state = RecognitionState.IDLE,
+            transcript = "",
+            error = ""
+        )
+    }
+
     fun isRecognitionSessionActive(): Boolean =
         recognitionState == RecognitionState.LISTENING ||
                 recognitionState == RecognitionState.SPEECH_ACTIVE

@@ -1,19 +1,15 @@
 package com.samsung.android.seamless.overlay.ui
 
 import android.content.Context
+import android.os.Bundle
+import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -29,11 +25,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -53,7 +47,17 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.samsung.android.seamless.R
 import com.samsung.android.seamless.overlay.OverlayUiState
 import com.samsung.android.seamless.widget.RecognitionState
-import android.widget.FrameLayout
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 class ExpandedOverlayView(
     context: Context,
@@ -65,8 +69,14 @@ class ExpandedOverlayView(
 ) : FrameLayout(context) {
 
     private var uiState by mutableStateOf(OverlayUiState())
+    private val overlayOwners = OverlayComposeOwners()
 
     init {
+        overlayOwners.performRestore()
+        setViewTreeLifecycleOwner(overlayOwners)
+        setViewTreeViewModelStoreOwner(overlayOwners)
+        setViewTreeSavedStateRegistryOwner(overlayOwners)
+
         val composeView = ComposeView(context).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
@@ -89,6 +99,16 @@ class ExpandedOverlayView(
     fun bind(state: OverlayUiState) {
         uiState = state
     }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        overlayOwners.handleAttach()
+    }
+
+    override fun onDetachedFromWindow() {
+        overlayOwners.handleDetach()
+        super.onDetachedFromWindow()
+    }
 }
 
 @Composable
@@ -100,98 +120,89 @@ private fun OverlayExpandedPanel(
     onCopy: () -> Unit,
     onClear: () -> Unit
 ) {
-    var contentVisible by mutableStateOf(false)
-    LaunchedEffect(Unit) {
-        contentVisible = true
-    }
-
-    AnimatedVisibility(
-        visible = contentVisible,
-        enter = fadeIn(tween(220)) + scaleIn(initialScale = 0.96f, animationSpec = spring()),
-        exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.96f)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Transparent,
+        shadowElevation = 18.dp
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            color = Color.Transparent,
-            shadowElevation = 18.dp
+        Box(
+            modifier = Modifier
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xF5101D3D),
+                            Color(0xF20A1530)
+                        )
+                    ),
+                    shape = RoundedCornerShape(28.dp)
+                )
+                .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xF5101D3D),
-                                Color(0xF20A1530)
-                            )
-                        ),
-                        shape = RoundedCornerShape(28.dp)
-                    )
-                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    HeaderRow(
-                        onCollapse = onCollapse,
-                        onDismiss = onDismiss
-                    )
+                HeaderRow(
+                    onCollapse = onCollapse,
+                    onDismiss = onDismiss
+                )
 
-                    ListeningAura(isActive = state.isRecording)
+                ListeningAura(isActive = state.isRecording)
 
-                    AnimatedContent(
-                        targetState = stateLabel(state),
-                        label = "state_label"
-                    ) { label ->
-                        Text(
-                            text = label,
-                            color = Color(0xFFD7E4F2),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    AnimatedContent(
-                        targetState = transcriptText(state),
-                        transitionSpec = {
-                            fadeIn(tween(180)) + slideInVertically(initialOffsetY = { it / 6 }) togetherWith
-                                    fadeOut(tween(120)) + slideOutVertically(targetOffsetY = { -it / 8 })
-                        },
-                        label = "transcript_content"
-                    ) { transcript ->
-                        Text(
-                            text = transcript,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 14.dp),
-                            color = if (state.recognitionState == RecognitionState.ERROR) {
-                                Color(0xFFD7E4F2)
-                            } else {
-                                Color(0xFF00D4AA)
-                            },
-                            fontSize = 20.sp,
-                            lineHeight = 25.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    UtilityRow(
-                        modifier = Modifier.padding(top = 16.dp),
-                        onCopy = onCopy,
-                        onClear = onClear
-                    )
-
-                    PrimaryActionButton(
-                        modifier = Modifier.padding(top = 18.dp),
-                        active = state.isRecording,
-                        text = primaryButtonText(state),
-                        onClick = onToggleRecognition
+                AnimatedContent(
+                    targetState = stateLabel(state),
+                    label = "state_label"
+                ) { label ->
+                    Text(
+                        text = label,
+                        color = Color(0xFFD7E4F2),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
+
+                AnimatedContent(
+                    targetState = transcriptText(state),
+                    transitionSpec = {
+                        androidx.compose.animation.fadeIn(tween(180)) +
+                                slideInVertically(initialOffsetY = { it / 6 }) togetherWith
+                                androidx.compose.animation.fadeOut(tween(120)) +
+                                slideOutVertically(targetOffsetY = { -it / 8 })
+                    },
+                    label = "transcript_content"
+                ) { transcript ->
+                    Text(
+                        text = transcript,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp),
+                        color = if (state.recognitionState == RecognitionState.ERROR) {
+                            Color(0xFFD7E4F2)
+                        } else {
+                            Color(0xFF00D4AA)
+                        },
+                        fontSize = 20.sp,
+                        lineHeight = 25.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                UtilityRow(
+                    modifier = Modifier.padding(top = 16.dp),
+                    onCopy = onCopy,
+                    onClear = onClear
+                )
+
+                PrimaryActionButton(
+                    modifier = Modifier.padding(top = 18.dp),
+                    active = state.isRecording,
+                    text = primaryButtonText(state),
+                    onClick = onToggleRecognition
+                )
             }
         }
-    }
+    }    
 }
 
 @Composable
@@ -345,7 +356,7 @@ private fun PrimaryActionButton(
     text: String,
     onClick: () -> Unit
 ) {
-    val backgroundColor by animateColorAsStateCompat(
+    val backgroundColor by animateColorAsState(
         if (active) Color(0x334CAF50) else Color(0x33222A33)
     )
 
@@ -384,10 +395,6 @@ private fun PrimaryActionButton(
     }
 }
 
-@Composable
-private fun animateColorAsStateCompat(target: Color): androidx.compose.runtime.State<Color> =
-    androidx.compose.animation.animateColorAsState(targetValue = target, label = "button_bg")
-
 private fun stateLabel(state: OverlayUiState): String =
     when (state.recognitionState) {
         RecognitionState.IDLE -> "Assistant ready"
@@ -411,3 +418,38 @@ private fun primaryButtonText(state: OverlayUiState): String =
         state.recognitionState == RecognitionState.ERROR -> "Retry listening"
         else -> "Start listening"
     }
+
+private class OverlayComposeOwners :
+    LifecycleOwner,
+    ViewModelStoreOwner,
+    SavedStateRegistryOwner {
+
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val ownerViewModelStore = ViewModelStore()
+    private val savedStateController = SavedStateRegistryController.create(this)
+
+    override val lifecycle: Lifecycle
+        get() = lifecycleRegistry
+
+    override val viewModelStore: ViewModelStore
+        get() = ownerViewModelStore
+
+    override val savedStateRegistry: SavedStateRegistry
+        get() = savedStateController.savedStateRegistry
+
+    fun performRestore() {
+        savedStateController.performAttach()
+        savedStateController.performRestore(Bundle())
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+    }
+
+    fun handleAttach() {
+        lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+    }
+
+    fun handleDetach() {
+        lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+    }
+}

@@ -5,7 +5,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.core.content.ContextCompat
 
 class OverlayPermissionActivity : ComponentActivity() {
 
@@ -22,6 +24,7 @@ class OverlayPermissionActivity : ComponentActivity() {
     }
 
     private fun continueOrRequestPermission() {
+        Log.i(TAG, "continueOrRequestPermission canDrawOverlays=${canDrawOverlays()}")
         if (canDrawOverlays()) {
             showOverlayIfPermittedAndFinish()
             return
@@ -37,8 +40,11 @@ class OverlayPermissionActivity : ComponentActivity() {
     }
 
     private fun showOverlayIfPermittedAndFinish() {
+        Log.i(TAG, "showOverlayIfPermittedAndFinish canDrawOverlays=${canDrawOverlays()}")
         if (canDrawOverlays()) {
-            startService(
+            Log.i(TAG, "Starting overlay foreground service")
+            ContextCompat.startForegroundService(
+                this,
                 Intent(this, SeamlessOverlayService::class.java).apply {
                     action = SeamlessOverlayService.ACTION_SHOW_OVERLAY
                     putExtra(
@@ -55,6 +61,7 @@ class OverlayPermissionActivity : ComponentActivity() {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
 
     companion object {
+        private const val TAG = "OverlayPermissionAct"
         private const val EXTRA_WAITING_FOR_PERMISSION_RESULT = "waiting_for_overlay_permission_result"
         const val EXTRA_START_EXPANDED = "extra_start_expanded"
     }

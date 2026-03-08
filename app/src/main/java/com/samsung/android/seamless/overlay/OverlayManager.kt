@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -32,6 +33,7 @@ class OverlayManager(
     private var isAnimatingExpansion = false
 
     fun render(state: OverlayUiState) {
+        Log.i(TAG, "render overlayVisible=${state.overlayVisible} expanded=${state.expanded}")
         if (!state.overlayVisible) {
             hide()
             return
@@ -45,6 +47,7 @@ class OverlayManager(
     }
 
     fun hide() {
+        Log.i(TAG, "hide")
         mainHandler.removeCallbacksAndMessages(null)
         bubbleView?.let { view ->
             runCatching { windowManager.removeView(view) }
@@ -57,6 +60,7 @@ class OverlayManager(
     }
 
     private fun showCollapsed(state: OverlayUiState) {
+        Log.i(TAG, "showCollapsed bubbleExists=${bubbleView != null}")
         isAnimatingExpansion = false
         expandedView?.let { view ->
             runCatching { windowManager.removeView(view) }
@@ -67,9 +71,13 @@ class OverlayManager(
             val params = createBubbleLayoutParams()
             val bubble = CollapsedBubbleView(appContext)
             bubble.setOnTouchListener(createDragTouchListener(params))
-
-            windowManager.addView(bubble, params)
-            bubbleView = bubble
+            try {
+                windowManager.addView(bubble, params)
+                bubbleView = bubble
+                Log.i(TAG, "Collapsed bubble added x=${params.x} y=${params.y}")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to add collapsed bubble", t)
+            }
         }
         bubbleView?.setRecording(state.isRecording)
         bubbleView?.alpha = 1f
@@ -108,6 +116,7 @@ class OverlayManager(
     }
 
     private fun showExpanded(state: OverlayUiState) {
+        Log.i(TAG, "showExpanded expandedExists=${expandedView != null}")
         bubbleView?.let { view ->
             runCatching { windowManager.removeView(view) }
             bubbleView = null
@@ -136,20 +145,25 @@ class OverlayManager(
                 onCopy = { copyTranscriptToClipboard() },
                 onClear = { clearTranscript() }
             )
-            windowManager.addView(view, createExpandedLayoutParams())
-            expandedView = view
-            view.bind(state)
-            view.alpha = 0f
-            view.translationY = dp(EXPANDED_ENTRY_OFFSET_DP).toFloat()
-            view.scaleX = 0.96f
-            view.scaleY = 0.96f
-            view.animate()
-                .alpha(1f)
-                .translationY(0f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(EXPAND_IN_DURATION_MS)
-                .start()
+            try {
+                windowManager.addView(view, createExpandedLayoutParams())
+                expandedView = view
+                view.bind(state)
+                view.alpha = 0f
+                view.translationY = dp(EXPANDED_ENTRY_OFFSET_DP).toFloat()
+                view.scaleX = 0.96f
+                view.scaleY = 0.96f
+                view.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(EXPAND_IN_DURATION_MS)
+                    .start()
+                Log.i(TAG, "Expanded panel added")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to add expanded panel", t)
+            }
         } else {
             expanded.bind(state)
         }
@@ -274,6 +288,7 @@ class OverlayManager(
         ).toInt()
 
     companion object {
+        private const val TAG = "OverlayManager"
         private const val PREFS_NAME = "seamless_overlay_prefs"
         private const val KEY_BUBBLE_X = "bubble_x"
         private const val KEY_BUBBLE_Y = "bubble_y"

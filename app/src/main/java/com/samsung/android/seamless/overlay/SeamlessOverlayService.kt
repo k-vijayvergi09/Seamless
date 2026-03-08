@@ -19,9 +19,6 @@ class SeamlessOverlayService : Service() {
         serviceScope.launch {
             OverlayStateStore.state.collect { state ->
                 overlayManager.render(state)
-                if (!state.overlayVisible) {
-                    stopSelf()
-                }
             }
         }
     }

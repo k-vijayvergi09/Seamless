@@ -69,6 +69,7 @@ class ExpandedOverlayView(
 ) : FrameLayout(context) {
 
     private var uiState by mutableStateOf(OverlayUiState())
+    private var anchoredToRight by mutableStateOf(false)
     private val overlayOwners = OverlayComposeOwners()
 
     init {
@@ -82,6 +83,7 @@ class ExpandedOverlayView(
             setContent {
                 OverlayExpandedPanel(
                     state = uiState,
+                    anchoredToRight = anchoredToRight,
                     onCollapse = onCollapse,
                     onDismiss = onDismiss,
                     onToggleRecognition = onToggleRecognition,
@@ -96,8 +98,9 @@ class ExpandedOverlayView(
         )
     }
 
-    fun bind(state: OverlayUiState) {
+    fun bind(state: OverlayUiState, anchoredToRight: Boolean) {
         uiState = state
+        this.anchoredToRight = anchoredToRight
     }
 
     override fun onAttachedToWindow() {
@@ -114,15 +117,32 @@ class ExpandedOverlayView(
 @Composable
 private fun OverlayExpandedPanel(
     state: OverlayUiState,
+    anchoredToRight: Boolean,
     onCollapse: () -> Unit,
     onDismiss: () -> Unit,
     onToggleRecognition: () -> Unit,
     onCopy: () -> Unit,
     onClear: () -> Unit
 ) {
+    val panelShape = if (anchoredToRight) {
+        RoundedCornerShape(
+            topStart = 30.dp,
+            topEnd = 16.dp,
+            bottomStart = 30.dp,
+            bottomEnd = 16.dp
+        )
+    } else {
+        RoundedCornerShape(
+            topStart = 16.dp,
+            topEnd = 30.dp,
+            bottomStart = 16.dp,
+            bottomEnd = 30.dp
+        )
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = panelShape,
         color = Color.Transparent,
         shadowElevation = 18.dp
     ) {
@@ -135,61 +155,28 @@ private fun OverlayExpandedPanel(
                             Color(0xF20A1530)
                         )
                     ),
-                    shape = RoundedCornerShape(28.dp)
+                    shape = panelShape
                 )
                 .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = if (anchoredToRight) Alignment.End else Alignment.Start
             ) {
                 HeaderRow(
+                    anchoredToRight = anchoredToRight,
                     onCollapse = onCollapse,
                     onDismiss = onDismiss
                 )
 
-                ListeningAura(isActive = state.isRecording)
-
-                AnimatedContent(
-                    targetState = stateLabel(state),
-                    label = "state_label"
-                ) { label ->
-                    Text(
-                        text = label,
-                        color = Color(0xFFD7E4F2),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                AnimatedContent(
-                    targetState = transcriptText(state),
-                    transitionSpec = {
-                        androidx.compose.animation.fadeIn(tween(180)) +
-                                slideInVertically(initialOffsetY = { it / 6 }) togetherWith
-                                androidx.compose.animation.fadeOut(tween(120)) +
-                                slideOutVertically(targetOffsetY = { -it / 8 })
-                    },
-                    label = "transcript_content"
-                ) { transcript ->
-                    Text(
-                        text = transcript,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 14.dp),
-                        color = if (state.recognitionState == RecognitionState.ERROR) {
-                            Color(0xFFD7E4F2)
-                        } else {
-                            Color(0xFF00D4AA)
-                        },
-                        fontSize = 20.sp,
-                        lineHeight = 25.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                AssistantBody(
+                    state = state,
+                    anchoredToRight = anchoredToRight
+                )
 
                 UtilityRow(
                     modifier = Modifier.padding(top = 16.dp),
+                    anchoredToRight = anchoredToRight,
                     onCopy = onCopy,
                     onClear = onClear
                 )
@@ -207,6 +194,7 @@ private fun OverlayExpandedPanel(
 
 @Composable
 private fun HeaderRow(
+    anchoredToRight: Boolean,
     onCollapse: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -214,27 +202,133 @@ private fun HeaderRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (anchoredToRight) {
+            HeaderAction(text = "Dismiss", onClick = onDismiss)
+            HeaderAction(text = "Minimize", onClick = onCollapse)
+        }
+
         Row(
             modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (anchoredToRight) Arrangement.End else Arrangement.Start
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_widget_mic),
-                contentDescription = null,
-                tint = Color(0xFF00D4AA),
-                modifier = Modifier.size(18.dp)
+            if (!anchoredToRight) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_widget_mic),
+                    contentDescription = null,
+                    tint = Color(0xFF00D4AA),
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "Seamless",
+                    modifier = Modifier.padding(start = 8.dp),
+                    color = Color(0xFF00D4AA),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Text(
+                    text = "Seamless",
+                    modifier = Modifier.padding(end = 8.dp),
+                    color = Color(0xFF00D4AA),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_widget_mic),
+                    contentDescription = null,
+                    tint = Color(0xFF00D4AA),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        if (!anchoredToRight) {
+            HeaderAction(text = "Minimize", onClick = onCollapse)
+            HeaderAction(text = "Dismiss", onClick = onDismiss)
+        }
+    }
+}
+
+@Composable
+private fun AssistantBody(
+    state: OverlayUiState,
+    anchoredToRight: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        if (!anchoredToRight) {
+            ListeningAura(isActive = state.isRecording)
+            TranscriptColumn(
+                state = state,
+                anchoredToRight = anchoredToRight,
+                modifier = Modifier.weight(1f)
             )
+        } else {
+            TranscriptColumn(
+                state = state,
+                anchoredToRight = anchoredToRight,
+                modifier = Modifier.weight(1f)
+            )
+            ListeningAura(isActive = state.isRecording)
+        }
+    }
+}
+
+@Composable
+private fun TranscriptColumn(
+    state: OverlayUiState,
+    anchoredToRight: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = if (anchoredToRight) Alignment.End else Alignment.Start
+    ) {
+        AnimatedContent(
+            targetState = stateLabel(state),
+            label = "state_label"
+        ) { label ->
             Text(
-            text = "Seamless",
-            modifier = Modifier.padding(start = 8.dp),
-            color = Color(0xFF00D4AA),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                text = label.uppercase(),
+                color = Color(0xFF7D96AF),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.2.sp,
+                textAlign = if (anchoredToRight) TextAlign.End else TextAlign.Start
             )
         }
 
-        HeaderAction(text = "Minimize", onClick = onCollapse)
-        HeaderAction(text = "Dismiss", onClick = onDismiss)
+        AnimatedContent(
+            targetState = transcriptText(state),
+            transitionSpec = {
+                androidx.compose.animation.fadeIn(tween(180)) +
+                        slideInVertically(initialOffsetY = { it / 6 }) togetherWith
+                        androidx.compose.animation.fadeOut(tween(120)) +
+                        slideOutVertically(targetOffsetY = { -it / 8 })
+            },
+            label = "transcript_content"
+        ) { transcript ->
+            Text(
+                text = transcript,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                color = if (state.recognitionState == RecognitionState.ERROR) {
+                    Color(0xFFD7E4F2)
+                } else {
+                    Color(0xFF00D4AA)
+                },
+                fontSize = 20.sp,
+                lineHeight = 25.sp,
+                textAlign = if (anchoredToRight) TextAlign.End else TextAlign.Start
+            )
+        }
     }
 }
 
@@ -278,7 +372,6 @@ private fun ListeningAura(isActive: Boolean) {
 
     Box(
         modifier = Modifier
-            .padding(top = 18.dp, bottom = 12.dp)
             .size(74.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -319,12 +412,13 @@ private fun ListeningAura(isActive: Boolean) {
 @Composable
 private fun UtilityRow(
     modifier: Modifier = Modifier,
+    anchoredToRight: Boolean,
     onCopy: () -> Unit,
     onClear: () -> Unit
 ) {
     Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.Center,
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = if (anchoredToRight) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically
     ) {
         UtilityAction(text = "Copy", color = Color(0xFF9EB2C7), onClick = onCopy)

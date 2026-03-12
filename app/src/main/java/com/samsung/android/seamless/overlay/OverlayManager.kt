@@ -87,7 +87,7 @@ class OverlayManager(
 
     private fun expandFromBubble(state: OverlayUiState) {
         if (expandedView != null) {
-            expandedView?.bind(state)
+            expandedView?.bind(state, isBubbleDockedRight())
             return
         }
 
@@ -148,7 +148,7 @@ class OverlayManager(
             try {
                 windowManager.addView(view, createExpandedLayoutParams())
                 expandedView = view
-                view.bind(state)
+                view.bind(state, isBubbleDockedRight())
                 view.alpha = 0f
                 view.translationY = dp(EXPANDED_ENTRY_OFFSET_DP).toFloat()
                 view.scaleX = 0.96f
@@ -165,7 +165,7 @@ class OverlayManager(
                 Log.e(TAG, "Failed to add expanded panel", t)
             }
         } else {
-            expanded.bind(state)
+            expanded.bind(state, isBubbleDockedRight())
         }
     }
 
@@ -186,7 +186,7 @@ class OverlayManager(
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = prefs.getInt(KEY_BUBBLE_X, DEFAULT_X)
+            x = prefs.getInt(KEY_BUBBLE_X, defaultBubbleX())
             y = prefs.getInt(KEY_BUBBLE_Y, DEFAULT_Y)
         }
     }
@@ -207,9 +207,10 @@ class OverlayManager(
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = 0
-            y = EXPANDED_Y
+            val anchoredRight = isBubbleDockedRight()
+            gravity = Gravity.TOP or if (anchoredRight) Gravity.END else Gravity.START
+            x = dp(PANEL_EDGE_MARGIN_DP)
+            y = expandedPanelY()
         }
     }
 
@@ -240,6 +241,9 @@ class OverlayManager(
                     }
 
                     MotionEvent.ACTION_UP -> {
+                        params.x = snappedBubbleX(params.x)
+                        params.y = clampedBubbleY(params.y)
+                        windowManager.updateViewLayout(view, params)
                         persistBubblePosition(params.x, params.y)
                         val deltaX = abs(event.rawX - touchDownRawX)
                         val deltaY = abs(event.rawY - touchDownRawY)
@@ -259,6 +263,37 @@ class OverlayManager(
             .putInt(KEY_BUBBLE_X, x)
             .putInt(KEY_BUBBLE_Y, y)
             .apply()
+    }
+
+    private fun expandedPanelY(): Int =
+        clampedPanelY(prefs.getInt(KEY_BUBBLE_Y, DEFAULT_Y) - dp(EXPANDED_Y_OFFSET_DP))
+
+    private fun clampedPanelY(rawY: Int): Int {
+        val displayHeight = appContext.resources.displayMetrics.heightPixels
+        val minY = dp(PANEL_TOP_MARGIN_DP)
+        val maxY = displayHeight - dp(PANEL_BOTTOM_MARGIN_DP)
+        return rawY.coerceIn(minY, maxY)
+    }
+
+    private fun clampedBubbleY(rawY: Int): Int {
+        val displayHeight = appContext.resources.displayMetrics.heightPixels
+        val minY = dp(BUBBLE_TOP_MARGIN_DP)
+        val maxY = displayHeight - dp(BUBBLE_BOTTOM_MARGIN_DP)
+        return rawY.coerceIn(minY, maxY)
+    }
+
+    private fun snappedBubbleX(rawX: Int): Int {
+        val displayWidth = appContext.resources.displayMetrics.widthPixels
+        val leftX = dp(EDGE_SNAP_MARGIN_DP)
+        val rightX = displayWidth - dp(BUBBLE_SIZE_DP) - dp(EDGE_SNAP_MARGIN_DP)
+        return if (rawX > displayWidth / 2) rightX else leftX
+    }
+
+    private fun defaultBubbleX(): Int = snappedBubbleX(DEFAULT_X)
+
+    private fun isBubbleDockedRight(): Boolean {
+        val displayWidth = appContext.resources.displayMetrics.widthPixels
+        return prefs.getInt(KEY_BUBBLE_X, defaultBubbleX()) > displayWidth / 2
     }
 
     private fun copyTranscriptToClipboard() {
@@ -295,9 +330,16 @@ class OverlayManager(
         private const val DEFAULT_X = 40
         private const val DEFAULT_Y = 240
         private const val TAP_SLOP_PX = 12
-        private const val EXPANDED_Y = 120
-        private const val PANEL_WIDTH_DP = 340
+        private const val PANEL_WIDTH_DP = 332
         private const val EXPANDED_ENTRY_OFFSET_DP = 18
+        private const val EXPANDED_Y_OFFSET_DP = 28
+        private const val PANEL_EDGE_MARGIN_DP = 12
+        private const val PANEL_TOP_MARGIN_DP = 88
+        private const val PANEL_BOTTOM_MARGIN_DP = 360
+        private const val BUBBLE_TOP_MARGIN_DP = 120
+        private const val BUBBLE_BOTTOM_MARGIN_DP = 140
+        private const val EDGE_SNAP_MARGIN_DP = 12
+        private const val BUBBLE_SIZE_DP = 64
         private const val EXPAND_OUT_DURATION_MS = 120L
         private const val EXPAND_IN_DURATION_MS = 220L
     }
